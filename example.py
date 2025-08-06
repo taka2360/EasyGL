@@ -115,6 +115,15 @@ def game_draw():
         app.draw_image(test_texture, width='auto', height=100, x=WIDTH - 180, y=280, align_center=True, z=z_foreground)
         app.draw_text("W:auto, H:100", WIDTH - 180, 340, font="arial", size=14, color=(255,255,255), z=z_foreground+1)
 
+    # --- 線描画のデモ (z=11) ---
+    line_z = 11
+    line_start_x = WIDTH / 2
+    line_start_y = HEIGHT
+    thickness = 5 + (math.sin(time.time() * 2) + 1) * 5 # 5から15の間で太さが変わる
+    line_color = (100, 150, 255)
+    app.draw_line(line_start_x, line_start_y, mouse_x, mouse_y, thickness=thickness, color=line_color, z=line_z)
+    app.draw_text("Line Drawing Demo", line_start_x - 80, line_start_y - 30, font="arial", size=16, color=line_color, z=line_z + 1)
+
     if app.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
         mx, my = app.get_mouse_position()
         app.draw_circle(mx, my, 20, color=(255, 255, 0), z=z_foreground)

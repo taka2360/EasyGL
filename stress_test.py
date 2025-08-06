@@ -1,5 +1,5 @@
 import random
-from easy_gl import EasyGL, KEY_UP, KEY_DOWN, KEY_ENTER, KEY_1, KEY_2
+from easy_gl import EasyGL, KEY_UP, KEY_DOWN, KEY_1, KEY_2
 import time
 import math
 

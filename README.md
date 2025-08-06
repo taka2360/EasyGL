@@ -1,147 +1,172 @@
-# EasyGL: シンプルな2Dグラフィックライブラリ for Python
+# 🎨 EasyGL - The simple 2D graphics library for Python
 
-`EasyGL` は、OpenGLの複雑さをラップし、Pythonで手軽に2Dグラフィックスを扱えるように設計されたライブラリです。デモやプロトタイピング、簡単なゲーム制作などに適しています。
+**EasyGL** is a Python library designed to make 2D graphics programming fun and intuitive. It wraps the complexities of OpenGL, providing a simple, high-performance API for creating games, demos, and visual prototypes.
 
-内部的には、大量のオブジェクトを効率的に描画するためのインスタンシングやバッチ処理などの最適化技術を使用しています。
+Whether you're a beginner learning gamedev or an expert building a quick prototype, EasyGL helps you bring your ideas to life with minimal code.
 
-![EasyGL Demo](https://i.imgur.com/example.png)  
-*(注: 上の画像はデモのイメージです。実際の `example.py` のスクリーンショットをここに挿入することを推奨します。)*
-
----
-
-## ◆ 主な機能
-
-- **シンプルなAPI:** `draw_rectangle`, `draw_circle` のような直感的な関数で描画できます。
-- **多彩な図形描画:**
-    - 矩形 (`draw_rectangle`)
-    - 円 (`draw_circle`)
-    - 楕円 (`draw_ellipse`)
-    - 凹形状にも対応した多角形 (`draw_polygon`)
-- **画像とテキスト:**
-    - 画像ファイルの読み込みと描画 (`load_texture`, `draw_image`)
-    - アスペクト比を維持した画像の自動リサイズ (`width='auto'` / `height='auto'`)
-    - システムフォントを使用したテキスト描画 (`draw_text`)
-- **パフォーマンス:**
-    - **インスタンシング:** 矩形や円など、同じ形状のオブジェクトを一度の命令で大量に描画します。
-    - **バッチ処理:** テクスチャやポリゴンをグループ化し、描画呼び出しの回数を削減します。
-- **入力ハンドリング:** キーボードとマウスの入力を簡単に扱えます。
-- **Zソート:** `z`値を指定することで、オブジェクトの重なり順を制御できます。
+![EasyGL Demo GIF](https://i.imgur.com/your-demo-gif.gif)
+*(This is a placeholder. It's highly recommended to replace this with a GIF of `example.py` in action!)*
 
 ---
 
-## ◆ セットアップ
+## ✨ Features
 
-### 必要なライブラリ
+- **🚀 Simple & Intuitive API**: Draw complex scenes with one-liners like `app.draw_circle()` and `app.draw_line()`.
+- **⚡ High Performance**: Utilizes modern OpenGL features like instancing and batch rendering to draw thousands of objects smoothly.
+- **🎬 Scene Management**: Built-in support for managing multiple game states (e.g., title screen, game, game over) with a clean scene manager.
+- **🎨 Rich Drawing Capabilities**:
+    - **Shapes**: Rectangles, Circles, Ellipses, and Lines with adjustable thickness.
+    - **Complex Polygons**: Concave polygon support (e.g., stars) powered by a JIT-compiled triangulation algorithm.
+    - **Images & Text**: Easily load and draw images (PNG, JPG) and text using system fonts.
+- **🖱️ Effortless Input**: Simple methods to handle keyboard and mouse input.
+- **🔢 Z-Ordering**: Control the layering of objects with a simple `z` parameter.
+- **⏱️ Delta Time**: Built-in delta time tracking (`app.get_delta_time()`) for frame-rate independent physics and animations.
 
-EasyGLを使用するには、以下のライブラリが必要です。
+---
+
+## 🔧 Installation
+
+EasyGL requires a few common Python libraries. You can install them all at once using the provided `requirements.txt` file:
 
 ```bash
-# pipを使用してインストール
-python -m pip install glfw pyopengl numpy pillow
+# Install all dependencies
+python -m pip install -r requirements.txt
 ```
 
-### ファイル構成
-
-プロジェクトフォルダに `easy_gl.py` と、それを使用するあなたのスクリプト（例: `main.py`）を配置します。
+Then, simply place `easy_gl.py` in your project directory alongside your main script.
 
 ```
-my_project/
+my_awesome_project/
 ├── easy_gl.py
 ├── main.py
-└── test_image.png (オプション)
+└── masterpiece.png  # (Optional image asset)
 ```
 
 ---
 
-## ◆ 基本的な使い方
+## 🚀 Quick Start
 
-EasyGLの基本的な構造は、`update`（状態更新）と`draw`（描画）の2つの関数をループで回すことです。
+Here's a simple example of a bouncing ball.
 
 ```python
 # main.py
-from easy_gl import EasyGL, KEY_W, KEY_S
+from easy_gl import EasyGL
 
-# 1. EasyGLのインスタンスを作成
-app = EasyGL(title="My App", width=1280, height=720, max_fps=60)
+# 1. Initialize EasyGL
+app = EasyGL(title="My First App", width=1280, height=720)
 
-# 2. ゲームの状態を定義
-player_x, player_y = 640, 360
+# 2. Define your game state
+ball = {'x': 100, 'y': 100, 'vx': 250, 'vy': 200, 'radius': 30}
 
-# 3. 状態を更新する関数を定義
+# 3. Create the update function (logic)
 def update():
-    global player_y
-    if app.is_key_pressed(KEY_W):
-        player_y -= 5
-    if app.is_key_pressed(KEY_S):
-        player_y += 5
-
-# 4. 描画する関数を定義
-def draw():
-    # (x, y, 半径, 色)
-    app.draw_circle(player_x, player_y, 30, color=(255, 100, 100))
+    dt = app.get_delta_time() # Get frame-rate independent time
     
-    # (テキスト, x, y, フォント名, サイズ, 色)
-    app.draw_text("Use W/S keys to move!", 20, 20, font="arial", size=24, color=(255, 255, 255))
+    ball['x'] += ball['vx'] * dt
+    ball['y'] += ball['vy'] * dt
 
-# 5. 関数を登録して実行
-app.set_update_function(update)
-app.set_draw_function(draw)
+    if ball['x'] < ball['radius'] or ball['x'] > 1280 - ball['radius']:
+        ball['vx'] *= -1
+    if ball['y'] < ball['radius'] or ball['y'] > 720 - ball['radius']:
+        ball['vy'] *= -1
+
+# 4. Create the draw function (rendering)
+def draw():
+    app.draw_circle(ball['x'], ball['y'], ball['radius'], color=(255, 100, 100))
+    app.draw_text("My Bouncing Ball!", 20, 20, font="arial", size=24)
+
+# 5. Add as a scene and run!
+app.add_scene("main", setup=None, update=update, draw=draw)
 app.run()
 ```
 
 ---
 
-## ◆ APIリファレンス
+## 🎬 Scene Management
 
-### 図形描画
+EasyGL allows you to structure your application into different scenes (like a title screen and a game screen).
 
-`draw_rectangle(x, y, width, height, color=(255,255,255), z=0)`
-- 中心座標 `(x, y)` に矩形を描画します。
+```python
+# --- Title Scene ---
+def title_update():
+    # Press 1 to start the game
+    if app.is_key_pressed(KEY_1):
+        app.set_scene("game") # Switch to the 'game' scene
 
-`draw_circle(x, y, radius, color=(255,255,255), z=0)`
-- 中心座標 `(x, y)` に円を描画します。
+def title_draw():
+    app.draw_text("My Awesome Game", 400, 300, font="arial", size=48)
+    app.draw_text("Press [1] to Start", 480, 400, font="arial", size=24)
 
-`draw_ellipse(x, y, width, height, color=(255,255,255), z=0)`
-- 中心座標 `(x, y)` に楕円を描画します。
+# --- Game Scene ---
+def game_setup():
+    # This function is called once when the scene starts
+    print("Game Started!")
 
-`draw_polygon(points, color=(255,255,255), z=0)`
-- 頂点のリスト `points` から多角形を描画します。星形のような凹んだ形状にも対応しています。
-- `points`: `[(x1, y1), (x2, y2), ...]` の形式。
+def game_update():
+    # ... game logic here ...
+    pass
 
-### 画像とテキスト
+def game_draw():
+    # ... game drawing here ...
+    app.draw_circle(640, 360, 50, color=(50, 200, 50))
 
-`load_texture(filepath)`
-- 画像ファイルを読み込み、テクスチャIDを返します。このIDは `draw_image` で使用します。
 
-`draw_image(tex_id, width, height, x, y, align_center=True, z=0)`
-- 指定されたテクスチャIDの画像を描画します。
-- `width` / `height`: `'auto'` を指定すると、アスペクト比を維持して自動リサイズします。
-    - `width=150, height='auto'`: 幅を150に固定し、高さを自動調整。
-    - `width='auto', height='auto'`: オリジナルサイズで描画。
-- `align_center`: `True` の場合、`(x, y)` が画像の中心になるように描画します。
+# --- Register scenes and run ---
+app.add_scene("title", setup=None, update=title_update, draw=title_draw)
+app.add_scene("game", setup=game_setup, update=game_update, draw=game_draw)
 
-`draw_text(text, x, y, font, size, color=(255,255,255), z=0)`
-- テキストを描画します。
-- `font`: `'arial'`, `'times new roman'` のように、システムにインストールされているフォント名を指定します。
-
-### 入力
-
-`is_key_pressed(key)`
-- 指定されたキーが押されているか (`True`/`False`) を返します。
-- `key`: `KEY_A`, `KEY_SPACE` などの定数を指定します。
-
-`is_mouse_button_pressed(button)`
-- 指定されたマウスボタンが押されているか (`True`/`False`) を返します。
-- `button`: `MOUSE_BUTTON_LEFT`, `MOUSE_BUTTON_RIGHT` などを指定します。
-
-`get_mouse_position()`
-- 現在のマウスカーソルの `(x, y)` 座標を返します。
+app.set_scene("title") # Set the initial scene
+app.run()
+```
 
 ---
 
-## ◆ デモ
+## 🎨 API Reference
 
-`example.py` を実行すると、このライブラリのほぼ全ての機能を使ったデモを見ることができます。多数のオブジェクトが滑らかに動く様子や、図形、画像、テキストの描画、入力への反応などを確認できます。
+### Initialization
+`EasyGL(title, width, height, max_fps=60)`
+- Creates and initializes the application window.
+
+### Scene Control
+`app.add_scene(name, setup, update, draw)`
+- Registers a new scene. `setup` is an optional function called once on scene start.
+`app.set_scene(name)`
+- Switches the active scene to the one with the given `name`.
+
+### Core Loop
+`app.get_delta_time()`
+- Returns the time in seconds since the last frame. Essential for smooth, frame-rate independent movement.
+
+### Drawing
+*All draw functions accept an optional `z=0` argument for layering.*
+
+`app.draw_rectangle(x, y, width, height, color)`
+`app.draw_circle(x, y, radius, color)`
+`app.draw_ellipse(x, y, width, height, color)`
+`app.draw_line(x1, y1, x2, y2, thickness, color)`
+`app.draw_polygon(points, color)`
+- `points` is a list of tuples: `[(x1, y1), (x2, y2), ...]`
+
+### Images & Text
+`app.load_texture(filepath)`
+- Loads an image and returns a `tex_id`.
+`app.draw_image(tex_id, width, height, x, y, align_center=True)`
+- `width` or `height` can be `'auto'` to preserve the aspect ratio.
+`app.draw_text(text, x, y, font, size, color)`
+
+### Input
+`app.is_key_pressed(key)`
+- e.g., `KEY_A`, `KEY_SPACE`, `KEY_ENTER`.
+`app.is_mouse_button_pressed(button)`
+- e.g., `MOUSE_BUTTON_LEFT`.
+`app.get_mouse_position()`
+- Returns `(x, y)`.
+
+---
+
+## demos
+
+Check out `example.py` and `stress_test.py` to see all these features in action!
 
 ```bash
 python example.py

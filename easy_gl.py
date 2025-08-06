@@ -8,15 +8,15 @@ import platform
 import numpy as np
 from collections import defaultdict
 from itertools import groupby
-from numba import njit
+from numba import njit, types
 
 
 # --- Numba-optimized Ear Clipping ---
-@njit
+@njit(types.float32(types.float32[:], types.float32[:], types.float32[:]), cache=True)
 def _cross_product_2d_njit(p1, p2, p3):
     return (p2[0] - p1[0]) * (p3[1] - p1[1]) - (p2[1] - p1[1]) * (p3[0] - p1[0])
 
-@njit
+@njit(types.boolean(types.float32[:], types.float32[:], types.float32[:], types.float32[:]), cache=True)
 def _is_point_in_triangle_njit(pt, v1, v2, v3):
     d1 = _cross_product_2d_njit(v1, v2, pt)
     d2 = _cross_product_2d_njit(v2, v3, pt)
@@ -25,7 +25,7 @@ def _is_point_in_triangle_njit(pt, v1, v2, v3):
     has_pos = (d1 > 0) or (d2 > 0) or (d3 > 0)
     return not (has_neg and has_pos)
 
-@njit
+@njit(types.float32[:,:](types.float32[:,:], types.float32[:]), cache=True)
 def _ear_clipping_njit(points, color_tuple):
     n = len(points)
     if n < 3:
@@ -141,7 +141,7 @@ class EasyGL:
     """
     MAX_INSTANCES = 20000
     MAX_TEXTURE_QUADS = 5000
-    MAX_POLYGON_VERTICES = 30000
+    MAX_POLYGON_VERTICES = 800000
 
     def __init__(self, title="EasyGL", width=800, height=600, max_fps=60):
         """
@@ -151,7 +151,7 @@ class EasyGL:
             title (str): ウィンドウのタイトル。
             width (int): ウィンドウの幅。
             height (int): ウィンドウの高さ。
-            max_fps (int): 最大フレームレート。0を指定すると無制限（VSync依存）になります。
+            max_fps (int): 最大フレームレート, デフォルト値は60です. 0を指定すると無制限（VSync依存）になります。
         """
         
         _ear_clipping_njit(np.array([[0,0],[1,0],[0,1]], dtype=np.float32), np.array([0,0,0], dtype=np.float32))
@@ -425,6 +425,40 @@ class EasyGL:
             z (int): 描画の奥行き順。
         """
         self._draw_calls[z]['circles'].append((x, y, width, height, color[0]/255, color[1]/255, color[2]/255))
+
+    def draw_line(self, x1, y1, x2, y2, thickness=1, color=(255,255,255), z=0):
+        """
+        線を描画リストに追加します。
+
+        Args:
+            x1 (float): 始点のx座標。
+            y1 (float): 始点のy座標。
+            x2 (float): 終点のx座標。
+            y2 (float): 終点のy座標。
+            thickness (float): 線の太さ。
+            color (tuple): (R, G, B) のタプル (各0-255)。
+            z (int): 描画の奥行き順。
+        """
+        if thickness <= 0: return
+
+        dx = x2 - x1
+        dy = y2 - y1
+        length = math.sqrt(dx*dx + dy*dy)
+        if length == 0: return
+
+        # 単位方向ベクトル
+        udx, udy = dx / length, dy / length
+        # 垂直ベクトル
+        nx, ny = -udy, udx
+
+        half_t = thickness / 2.0
+
+        p1 = (x1 - nx * half_t, y1 - ny * half_t)
+        p2 = (x2 - nx * half_t, y2 - ny * half_t)
+        p3 = (x2 + nx * half_t, y2 + ny * half_t)
+        p4 = (x1 + nx * half_t, y1 + ny * half_t)
+
+        self.draw_polygon([p1, p2, p3, p4], color, z)
 
     def draw_polygon(self, points, color=(255,255,255), z=0):
         """
