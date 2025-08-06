@@ -1,4 +1,4 @@
-# 🎨 EasyGL - シンプルな2Dグラフィックライブラリ for Python
+# 🎨 EasyGL - EasyGL - The simple 2D graphics library for Python
 
 **EasyGL**は、Pythonで2Dグラフィックスプログラミングを楽しく直感的に行うために設計されたライブラリです。OpenGLの複雑さをラップし、ゲーム、デモ、ビジュアルプロトタイピングのためのシンプルで高性能なAPIを提供します。
 

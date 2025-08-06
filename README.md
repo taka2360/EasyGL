@@ -4,6 +4,8 @@
 
 Whether you're a beginner learning gamedev or an expert building a quick prototype, EasyGL helps you bring your ideas to life with minimal code.
 
+[日本語版 README はこちら](https://github.com/taka2360/EasyGL/blob/main/README.ja.md)
+
 ![EasyGL Demo GIF](https://i.imgur.com/your-demo-gif.gif)
 *(This is a placeholder. It's highly recommended to replace this with a GIF of `example.py` in action!)*
 
