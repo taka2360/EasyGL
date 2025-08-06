@@ -1,10 +1,10 @@
 # 🎨 EasyGL - The simple 2D graphics library for Python
 
+[日本語版 README はこちら](https://github.com/taka2360/EasyGL/blob/main/README.ja.md)
+
 **EasyGL** is a Python library designed to make 2D graphics programming fun and intuitive. It wraps the complexities of OpenGL, providing a simple, high-performance API for creating games, demos, and visual prototypes.
 
 Whether you're a beginner learning gamedev or an expert building a quick prototype, EasyGL helps you bring your ideas to life with minimal code.
-
-[日本語版 README はこちら](https://github.com/taka2360/EasyGL/blob/main/README.ja.md)
 
 ![EasyGL Demo GIF](https://i.imgur.com/your-demo-gif.gif)
 *(This is a placeholder. It's highly recommended to replace this with a GIF of `example.py` in action!)*
