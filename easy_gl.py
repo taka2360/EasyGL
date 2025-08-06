@@ -10,6 +10,7 @@ from collections import defaultdict
 from itertools import groupby
 from numba import njit
 
+
 # --- Numba-optimized Ear Clipping ---
 @njit
 def _cross_product_2d_njit(p1, p2, p3):
@@ -194,11 +195,45 @@ class EasyGL:
         glfw.set_mouse_button_callback(self._window, self._mouse_button_callback)
         glfw.set_cursor_pos_callback(self._window, self._cursor_pos_callback)
         
-        self._draw_function, self._update_function = None, None
+        self._scenes = {}
+        self._current_scene = None
+        self._active_update = None
+        self._active_draw = None
+        self._draw_function, self._update_function = None, None # For backward compatibility
+        self._delta_time = 0.0
+
         self._textures, self._text_cache, self._font_path_cache, self._font_cache = {}, {}, {}, {}
         self._texture_dims = {}
 
+    def add_scene(self, name, setup, update, draw):
+        """
+        新しいシーンをアプリケーションに追加します。
 
+        Args:
+            name (str): シーンの一意な名前。
+            setup (function): シーンがアクティブになったときに一度だけ呼び出される関数。引数なしである必要があります。
+            update (function): 毎フレーム呼び出される状態更新用の関数。引数なしである必要があります。
+            draw (function): 毎フレーム呼び出される描画用の関数。引数なしである必要があります。
+        """
+        self._scenes[name] = {'setup': setup, 'update': update, 'draw': draw}
+
+    def set_scene(self, name):
+        """
+        アクティブなシーンを切り替えます。
+        指定された名前のシーンが存在しない場合は警告を出力します。
+
+        Args:
+            name (str): 切り替えたいシーンの名前。
+        """
+        if name in self._scenes:
+            self._current_scene = name
+            scene = self._scenes[name]
+            self._active_update = scene['update']
+            self._active_draw = scene['draw']
+            if scene['setup']:
+                scene['setup']()
+        else:
+            print(f"Warning: Scene '{name}' not found.")
 
     def _generate_circle_verts(self, segments=36):
         verts = []
@@ -241,29 +276,46 @@ class EasyGL:
         """
         メインループを開始します。
         この関数を呼び出すと、ウィンドウが閉じるまで処理がブロックされます。
-        `set_update_function` と `set_draw_function` で登録した関数が毎フレーム呼び出されます。
+        `set_scene`で設定されたアクティブなシーンのupdate/draw関数が毎フレーム呼び出されます。
         """
+        if self._update_function and self._draw_function and not self._scenes:
+            self.add_scene("default", None, self._update_function, self._draw_function)
+            self.set_scene("default")
+        elif self._scenes and not self._current_scene:
+            self.set_scene(next(iter(self._scenes)))
+
         self._last_frame_time = glfw.get_time()
         projection_matrix = np.array([[2/self._width,0,0,-1], [0,-2/self._height,0,1], [0,0,-1,0], [0,0,0,1]], dtype=np.float32).T
         glEnable(GL_BLEND); glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
 
         while not glfw.window_should_close(self._window):
             current_time = glfw.get_time()
-            delta_time = current_time - self._last_frame_time
-            if self._frame_time > 0 and delta_time < self._frame_time:
-                time.sleep(self._frame_time - delta_time)
-            self._last_frame_time = glfw.get_time()
+            self._delta_time = current_time - self._last_frame_time
+            if self._frame_time > 0 and self._delta_time < self._frame_time:
+                time.sleep(self._frame_time - self._delta_time)
+                current_time = glfw.get_time()
+                self._delta_time = current_time - self._last_frame_time
+            self._last_frame_time = current_time
 
             glClearColor(*self._background_color); glClear(GL_COLOR_BUFFER_BIT)
 
-            if self._update_function: self._update_function()
+            if self._active_update: self._active_update()
             self._draw_calls.clear()
-            if self._draw_function: self._draw_function()
+            if self._active_draw: self._active_draw()
             
             self._flush(projection_matrix)
 
             glfw.swap_buffers(self._window); glfw.poll_events()
         glfw.terminate()
+
+    def get_delta_time(self):
+        """
+        前のフレームからの経過時間（秒）を返します。
+
+        Returns:
+            float: delta time.
+        """
+        return self._delta_time
 
     def _flush(self, projection_matrix):
         sorted_z = sorted(self._draw_calls.keys())
@@ -450,36 +502,158 @@ class EasyGL:
         """
         return self._textures.get(filepath) or self._load_texture_file(filepath)
 
-    def _compile_shader(self, vs, fs): p=glCreateProgram();s1=glCreateShader(GL_VERTEX_SHADER);glShaderSource(s1,vs);glCompileShader(s1);p_s=glGetShaderiv(s1,GL_COMPILE_STATUS);s2=glCreateShader(GL_FRAGMENT_SHADER);glShaderSource(s2,fs);glCompileShader(s2);f_s=glGetShaderiv(s2,GL_COMPILE_STATUS);glAttachShader(p,s1);glAttachShader(p,s2);glLinkProgram(p);glDeleteShader(s1);glDeleteShader(s2);return p
-    def set_draw_function(self, func): self._draw_function = func
-    def set_update_function(self, func): self._update_function = func
-    def set_background_color(self, r, g, b): self._background_color = (r/255, g/255, b/255, 1.0)
-    def _key_callback(self,w,k,sc,a,m): self._keys[k] = a != glfw.RELEASE
-    def _mouse_button_callback(self,w,b,a,m): self._mouse_buttons[b] = a != glfw.RELEASE
-    def _cursor_pos_callback(self,w,x,y): self._mouse_pos = (x,y)
-    def is_key_pressed(self,k): return self._keys.get(k, False)
-    def get_mouse_position(self): return self._mouse_pos
-    def is_mouse_button_pressed(self,b): return self._mouse_buttons.get(b, False)
-    def _find_font_path(self,f):f=f.lower().replace(" ","");p=self._font_path_cache.get(f);return p if p else self._find_font_path_os(f)
-    def _find_font_path_os(self,f):d=os.path.join(os.environ.get("SystemRoot","C:\\Windows"),"Fonts") if platform.system()=="Windows" else "/System/Library/Fonts/Supplemental";fp=os.path.join(d,f+".ttf");self._font_path_cache[f]=fp if os.path.exists(fp) else None;return self._font_path_cache[f]
-    def _get_font(self,f,s):k=(f.lower(),s);p=self._font_cache.get(k);return p if p else self._load_font(f,s,k)
-    def _load_font(self,f,s,k):fp=self._find_font_path(f);self._font_cache[k]=ImageFont.truetype(fp,s) if fp else ImageFont.load_default();return self._font_cache[k]
-    def _create_text_texture(self,t,f,s,c):
-        font=self._get_font(f,s);k=(t,font.path if hasattr(font,'path') else 'default',s,c);p=self._text_cache.get(k)
-        if p: return p
-        tid, w, h = self._render_text_texture(t,font,c,k)
+    #その他メソッド
+    def _compile_shader(self, vs, fs):
+        p = glCreateProgram()
+        s1 = glCreateShader(GL_VERTEX_SHADER)
+        glShaderSource(s1, vs)
+        glCompileShader(s1)
+        p_s = glGetShaderiv(s1, GL_COMPILE_STATUS)
+        s2 = glCreateShader(GL_FRAGMENT_SHADER)
+        glShaderSource(s2, fs)
+        glCompileShader(s2)
+        f_s = glGetShaderiv(s2, GL_COMPILE_STATUS)
+        glAttachShader(p, s1)
+        glAttachShader(p, s2)
+        glLinkProgram(p)
+        glDeleteShader(s1)
+        glDeleteShader(s2)
+        return p
+
+    def set_background_color(self, r, g, b):
+        self._background_color = (r / 255, g / 255, b / 255, 1.0)
+
+    def _key_callback(self, w, k, sc, a, m):
+        self._keys[k] = a != glfw.RELEASE
+
+    def _mouse_button_callback(self, w, b, a, m):
+        self._mouse_buttons[b] = a != glfw.RELEASE
+
+    def _cursor_pos_callback(self, w, x, y):
+        self._mouse_pos = (x, y)
+
+    def is_key_pressed(self, k):
+        return self._keys.get(k, False)
+
+    def get_mouse_position(self):
+        return self._mouse_pos
+
+    def is_mouse_button_pressed(self, b):
+        return self._mouse_buttons.get(b, False)
+
+    def _find_font_path(self, f):
+        f = f.lower().replace(" ", "")
+        p = self._font_path_cache.get(f)
+        return p if p else self._find_font_path_os(f)
+
+    def _find_font_path_os(self, f):
+        d = os.path.join(os.environ.get("SystemRoot", "C:\\Windows"), "Fonts") if platform.system() == "Windows" else "/System/Library/Fonts/Supplemental"
+        fp = os.path.join(d, f + ".ttf")
+        self._font_path_cache[f] = fp if os.path.exists(fp) else None
+        return self._font_path_cache[f]
+
+    def _get_font(self, f, s):
+        k = (f.lower(), s)
+        p = self._font_cache.get(k)
+        return p if p else self._load_font(f, s, k)
+
+    def _load_font(self, f, s, k):
+        fp = self._find_font_path(f)
+        self._font_cache[k] = (ImageFont.truetype(fp, s) if fp else ImageFont.load_default())
+        return self._font_cache[k]
+
+    def _create_text_texture(self, t, f, s, c):
+        font = self._get_font(f, s)
+        k = (t, font.path if hasattr(font, "path") else "default", s, c)
+        p = self._text_cache.get(k)
+        if p:
+            return p
+        tid, w, h = self._render_text_texture(t, font, c, k)
         self._text_cache[k] = (tid, w, h)
         return tid, w, h
-    def _render_text_texture(self,t,font,c,k):
-        b=font.getbbox(t);w,h=b[2]-b[0],b[3]-b[1];i=Image.new('RGBA',(b[2],b[3]),(0,0,0,0));d=ImageDraw.Draw(i);d.text((-b[0],-b[1]),t,font=font,fill=c+(255,));tid=self._create_texture_from_image(i);return tid, i.width, i.height
-    def _create_texture_from_image(self,i):
-        d=i.tobytes();tid=glGenTextures(1);glBindTexture(GL_TEXTURE_2D,tid);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA,i.width,i.height,0,GL_RGBA,GL_UNSIGNED_BYTE,d);self._texture_dims[tid]=(i.width,i.height);return tid
-    def _load_texture_file(self,p):
-        i=Image.open(p).convert("RGBA");tid=self._create_texture_from_image(i);self._textures[p]=tid;return tid
+
+    def _render_text_texture(self, t, font, c, k):
+        b = font.getbbox(t)
+        w, h = b[2] - b[0], b[3] - b[1]
+        i = Image.new("RGBA", (b[2], b[3]), (0, 0, 0, 0))
+        d = ImageDraw.Draw(i)
+        d.text((-b[0], -b[1]), t, font=font, fill=c + (255,))
+        tid = self._create_texture_from_image(i)
+        return tid, i.width, i.height
+
+    def _create_texture_from_image(self, i):
+        d = i.tobytes()
+        tid = glGenTextures(1)
+        glBindTexture(GL_TEXTURE_2D, tid)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+        glTexImage2D(
+            GL_TEXTURE_2D,
+            0,
+            GL_RGBA,
+            i.width,
+            i.height,
+            0,
+            GL_RGBA,
+            GL_UNSIGNED_BYTE,
+            d,
+        )
+        self._texture_dims[tid] = (i.width, i.height)
+        return tid
+
+    def _load_texture_file(self, p):
+        i = Image.open(p).convert("RGBA")
+        tid = self._create_texture_from_image(i)
+        self._textures[p] = tid
+        return tid
+
 
 # --- GLFWキー定数 ---
-KEY_A=glfw.KEY_A;KEY_B=glfw.KEY_B;KEY_C=glfw.KEY_C;KEY_D=glfw.KEY_D;KEY_E=glfw.KEY_E;KEY_F=glfw.KEY_F;KEY_G=glfw.KEY_G;KEY_H=glfw.KEY_H;KEY_I=glfw.KEY_I;KEY_J=glfw.KEY_J;KEY_K=glfw.KEY_K;KEY_L=glfw.KEY_L;KEY_M=glfw.KEY_M;KEY_N=glfw.KEY_N;KEY_O=glfw.KEY_O;KEY_P=glfw.KEY_P;KEY_Q=glfw.KEY_Q;KEY_R=glfw.KEY_R;KEY_S=glfw.KEY_S;KEY_T=glfw.KEY_T;KEY_U=glfw.KEY_U;KEY_V=glfw.KEY_V;KEY_W=glfw.KEY_W;KEY_X=glfw.KEY_X;KEY_Y=glfw.KEY_Y;KEY_Z=glfw.KEY_Z
-KEY_0=glfw.KEY_0;KEY_1=glfw.KEY_1;KEY_2=glfw.KEY_2;KEY_3=glfw.KEY_3;KEY_4=glfw.KEY_4;KEY_5=glfw.KEY_5;KEY_6=glfw.KEY_6;KEY_7=glfw.KEY_7;KEY_8=glfw.KEY_8;KEY_9=glfw.KEY_9
-KEY_UP=glfw.KEY_UP;KEY_DOWN=glfw.KEY_DOWN;KEY_LEFT=glfw.KEY_LEFT;KEY_RIGHT=glfw.KEY_RIGHT
-KEY_SPACE=glfw.KEY_SPACE;KEY_ENTER=glfw.KEY_ENTER;KEY_ESCAPE=glfw.KEY_ESCAPE;KEY_TAB=glfw.KEY_TAB;KEY_BACKSPACE=glfw.KEY_BACKSPACE
-MOUSE_BUTTON_LEFT=glfw.MOUSE_BUTTON_LEFT;MOUSE_BUTTON_RIGHT=glfw.MOUSE_BUTTON_RIGHT;MOUSE_BUTTON_MIDDLE=glfw.MOUSE_BUTTON_MIDDLE
+KEY_A = glfw.KEY_A
+KEY_B = glfw.KEY_B
+KEY_C = glfw.KEY_C
+KEY_D = glfw.KEY_D
+KEY_E = glfw.KEY_E
+KEY_F = glfw.KEY_F
+KEY_G = glfw.KEY_G
+KEY_H = glfw.KEY_H
+KEY_I = glfw.KEY_I
+KEY_J = glfw.KEY_J
+KEY_K = glfw.KEY_K
+KEY_L = glfw.KEY_L
+KEY_M = glfw.KEY_M
+KEY_N = glfw.KEY_N
+KEY_O = glfw.KEY_O
+KEY_P = glfw.KEY_P
+KEY_Q = glfw.KEY_Q
+KEY_R = glfw.KEY_R
+KEY_S = glfw.KEY_S
+KEY_T = glfw.KEY_T
+KEY_U = glfw.KEY_U
+KEY_V = glfw.KEY_V
+KEY_W = glfw.KEY_W
+KEY_X = glfw.KEY_X
+KEY_Y = glfw.KEY_Y
+KEY_Z = glfw.KEY_Z
+KEY_0 = glfw.KEY_0
+KEY_1 = glfw.KEY_1
+KEY_2 = glfw.KEY_2
+KEY_3 = glfw.KEY_3
+KEY_4 = glfw.KEY_4
+KEY_5 = glfw.KEY_5
+KEY_6 = glfw.KEY_6
+KEY_7 = glfw.KEY_7
+KEY_8 = glfw.KEY_8
+KEY_9 = glfw.KEY_9
+KEY_UP = glfw.KEY_UP
+KEY_DOWN = glfw.KEY_DOWN
+KEY_LEFT = glfw.KEY_LEFT
+KEY_RIGHT = glfw.KEY_RIGHT
+KEY_SPACE = glfw.KEY_SPACE
+KEY_ENTER = glfw.KEY_ENTER
+KEY_ESCAPE = glfw.KEY_ESCAPE
+KEY_TAB = glfw.KEY_TAB
+KEY_BACKSPACE = glfw.KEY_BACKSPACE
+MOUSE_BUTTON_LEFT = glfw.MOUSE_BUTTON_LEFT
+MOUSE_BUTTON_RIGHT = glfw.MOUSE_BUTTON_RIGHT
+MOUSE_BUTTON_MIDDLE = glfw.MOUSE_BUTTON_MIDDLE
